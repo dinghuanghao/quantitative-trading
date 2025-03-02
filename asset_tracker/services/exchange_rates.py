@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-import akshare as ak
+from forex_python.converter import CurrencyRates
 from typing import Dict, Optional
 import logging
 from datetime import datetime, timedelta
@@ -14,7 +14,7 @@ _last_update = None
 
 def get_exchange_rates(base_currency: str = "USD", force_refresh: bool = False) -> Dict[str, float]:
     """
-    Fetch current exchange rates using AKShare.
+    Fetch current exchange rates using forex-python.
     
     Args:
         base_currency: Base currency for the exchange rates
@@ -33,53 +33,38 @@ def get_exchange_rates(base_currency: str = "USD", force_refresh: bool = False) 
         return _exchange_rate_cache
     
     try:
-        # Use AKShare to get exchange rates
+        # Use forex-python to get exchange rates
+        c = CurrencyRates()
         rates = {}
         
-        # Get USD/CNY rate
-        try:
-            # Try using forex_spot_quote for real-time forex data
-            df = ak.forex_spot_quote()
-            # Find USD/CNY rate
-            usd_cny_row = df[df['代码'] == 'USDCNY']
-            if not usd_cny_row.empty:
-                rates["CNY"] = float(usd_cny_row['卖出'].iloc[0])
-            else:
-                # Fallback to a default rate if not found
-                rates["CNY"] = 7.0  # Approximate USD/CNY rate
-                logger.warning("Using default USD/CNY rate: 7.0")
-        except Exception as e:
-            logger.error(f"Error fetching USD/CNY rate: {e}")
-            # Fallback to a default rate
-            rates["CNY"] = 7.0
-            logger.warning("Using default USD/CNY rate: 7.0")
-            
-        # Get USD/HKD rate
-        try:
-            # Try using forex_spot_quote for real-time forex data
-            df = ak.forex_spot_quote()
-            # Find USD/HKD rate
-            usd_hkd_row = df[df['代码'] == 'USDHKD']
-            if not usd_hkd_row.empty:
-                rates["HKD"] = float(usd_hkd_row['卖出'].iloc[0])
-            else:
-                # Fallback to a default rate if not found
-                rates["HKD"] = 7.8  # Approximate USD/HKD rate
-                logger.warning("Using default USD/HKD rate: 7.8")
-        except Exception as e:
-            logger.error(f"Error fetching USD/HKD rate: {e}")
-            # Fallback to a default rate
-            rates["HKD"] = 7.8
-            logger.warning("Using default USD/HKD rate: 7.8")
+        # Get rates for supported currencies
+        supported_currencies = ["USD", "CNY", "HKD"]
         
-        # Add USD/USD rate (1.0)
-        rates["USD"] = 1.0
-        
-        # If base currency is not USD, convert all rates
-        if base_currency != "USD" and base_currency in rates:
-            base_rate = rates[base_currency]
-            for currency, rate in rates.items():
-                rates[currency] = rate / base_rate
+        for currency in supported_currencies:
+            try:
+                if currency == base_currency:
+                    rates[currency] = 1.0
+                else:
+                    # Get rate from base_currency to currency
+                    rates[currency] = c.get_rate(base_currency, currency)
+            except Exception as e:
+                logger.error(f"Error fetching {base_currency}/{currency} rate: {e}")
+                # Fallback to default rates
+                if base_currency == "USD" and currency == "CNY":
+                    rates[currency] = 7.0
+                    logger.warning(f"Using default USD/CNY rate: 7.0")
+                elif base_currency == "USD" and currency == "HKD":
+                    rates[currency] = 7.8
+                    logger.warning(f"Using default USD/HKD rate: 7.8")
+                elif currency == "USD":
+                    rates[currency] = 1.0
+                else:
+                    # For other currency pairs, use approximate rates
+                    if currency == "CNY":
+                        rates[currency] = 7.0
+                    elif currency == "HKD":
+                        rates[currency] = 7.8
+                    logger.warning(f"Using default rate for {base_currency}/{currency}")
         
         _exchange_rate_cache = rates
         _last_update = current_time
@@ -95,7 +80,7 @@ def get_exchange_rates(base_currency: str = "USD", force_refresh: bool = False) 
 
 def get_historical_exchange_rates(date_str: str, base_currency: str = "USD") -> Dict[str, float]:
     """
-    Fetch historical exchange rates for a specific date using AKShare.
+    Fetch historical exchange rates for a specific date using forex-python.
     
     Args:
         date_str: Date string in YYYY-MM-DD format
@@ -105,47 +90,47 @@ def get_historical_exchange_rates(date_str: str, base_currency: str = "USD") -> 
         Dictionary of exchange rates with currency as key and rate as value
     """
     try:
-        # For historical rates, we'll use current rates as AKShare doesn't have a direct
-        # historical currency API that works reliably for all date ranges
+        # Parse the date string
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        
+        # Use forex-python to get historical rates
+        c = CurrencyRates()
         rates = {}
         
-        # Get current rates as fallback
-        try:
-            # Try using forex_spot_quote for real-time forex data
-            df = ak.forex_spot_quote()
-            
-            # Find USD/CNY rate
-            usd_cny_row = df[df['代码'] == 'USDCNY']
-            if not usd_cny_row.empty:
-                rates["CNY"] = float(usd_cny_row['卖出'].iloc[0])
-            else:
-                # Fallback to a default rate if not found
-                rates["CNY"] = 7.0  # Approximate USD/CNY rate
-                logger.warning(f"Using default USD/CNY rate for {date_str}: 7.0")
-                
-            # Find USD/HKD rate
-            usd_hkd_row = df[df['代码'] == 'USDHKD']
-            if not usd_hkd_row.empty:
-                rates["HKD"] = float(usd_hkd_row['卖出'].iloc[0])
-            else:
-                # Fallback to a default rate if not found
-                rates["HKD"] = 7.8  # Approximate USD/HKD rate
-                logger.warning(f"Using default USD/HKD rate for {date_str}: 7.8")
-        except Exception as e:
-            logger.error(f"Error fetching current rates as fallback: {e}")
-            # Use default rates
-            rates["CNY"] = 7.0
-            rates["HKD"] = 7.8
-            logger.warning(f"Using default rates for {date_str}: USD/CNY=7.0, USD/HKD=7.8")
+        # Get rates for supported currencies
+        supported_currencies = ["USD", "CNY", "HKD"]
         
-        # Add USD/USD rate (1.0)
-        rates["USD"] = 1.0
-        
-        # If base currency is not USD, convert all rates
-        if base_currency != "USD" and base_currency in rates:
-            base_rate = rates[base_currency]
-            for currency, rate in rates.items():
-                rates[currency] = rate / base_rate
+        for currency in supported_currencies:
+            try:
+                if currency == base_currency:
+                    rates[currency] = 1.0
+                else:
+                    # Get historical rate from base_currency to currency
+                    rates[currency] = c.get_rate(base_currency, currency, date_obj)
+            except Exception as e:
+                logger.error(f"Error fetching historical {base_currency}/{currency} rate for {date_str}: {e}")
+                # Fallback to current rates
+                try:
+                    rates[currency] = c.get_rate(base_currency, currency)
+                    logger.warning(f"Using current rate for {base_currency}/{currency} as historical rate not available")
+                except Exception as e2:
+                    logger.error(f"Error fetching current {base_currency}/{currency} rate as fallback: {e2}")
+                    # Use default rates
+                    if base_currency == "USD" and currency == "CNY":
+                        rates[currency] = 7.0
+                        logger.warning(f"Using default USD/CNY rate for {date_str}: 7.0")
+                    elif base_currency == "USD" and currency == "HKD":
+                        rates[currency] = 7.8
+                        logger.warning(f"Using default USD/HKD rate for {date_str}: 7.8")
+                    elif currency == "USD":
+                        rates[currency] = 1.0
+                    else:
+                        # For other currency pairs, use approximate rates
+                        if currency == "CNY":
+                            rates[currency] = 7.0
+                        elif currency == "HKD":
+                            rates[currency] = 7.8
+                        logger.warning(f"Using default rate for {base_currency}/{currency} for {date_str}")
         
         return rates
             
