@@ -205,6 +205,11 @@ class PortfolioManager:
                     "value": stock_values["HKStocks"]
                 }
             },
+            "exchangeRates": {
+                "USD": day.exchangeRates.USD,
+                "CNY": day.exchangeRates.CNY,
+                "HKD": day.exchangeRates.HKD
+            },
             "totalAssets": {
                 "USD": day.totalAssets.USD,
                 "HKD": day.totalAssets.HKD,

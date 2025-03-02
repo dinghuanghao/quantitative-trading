@@ -66,6 +66,13 @@ class TotalAssets:
 
 
 @dataclass
+class ExchangeRates:
+    USD: float = 1.0
+    CNY: Optional[float] = None
+    HKD: Optional[float] = None
+
+
+@dataclass
 class StockHoldings:
     AShares: Dict[str, Stock] = field(default_factory=dict)
     USStocks: Dict[str, Stock] = field(default_factory=dict)
@@ -101,6 +108,7 @@ class PortfolioDay:
     cash: CashHoldings = field(default_factory=CashHoldings)
     totalAssets: TotalAssets = field(default_factory=TotalAssets)
     stocks: StockHoldings = field(default_factory=StockHoldings)
+    exchangeRates: ExchangeRates = field(default_factory=ExchangeRates)
     
     def update_total_assets(self, exchange_rates: Dict[str, float]) -> None:
         """
@@ -110,6 +118,11 @@ class PortfolioDay:
             exchange_rates: Dictionary of exchange rates with currency as key
                            and rate as value (relative to USD)
         """
+        # Store the exchange rates
+        self.exchangeRates.USD = exchange_rates.get("USD", 1.0)
+        self.exchangeRates.CNY = exchange_rates.get("CNY")
+        self.exchangeRates.HKD = exchange_rates.get("HKD")
+        
         # Calculate stock values in their native currencies
         stock_values = self.stocks.total_value()
         
