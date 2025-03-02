@@ -136,17 +136,33 @@ class PortfolioManager:
                 return
             day = self.create_portfolio_day(date_str)
         
-        # Get exchange rates
-        if date_str is None:
-            exchange_rates = get_exchange_rates()
-        else:
-            exchange_rates = get_historical_exchange_rates(date_str)
-            
-            # If historical rates are not available, use current rates
-            if not exchange_rates:
-                logger.warning(f"No historical exchange rates found for {date_str}, using current rates")
-                exchange_rates = get_exchange_rates()
+        # Get exchange rates using the new API
+        target_currencies = ["USD", "CNY", "HKD"]
+        current_date = date_str or datetime.now().strftime("%Y-%m-%d")
         
+        # Get exchange rates data
+        exchange_rate_data = get_exchange_rates(
+            date_str=current_date,
+            base_currency="USD",
+            target_currencies=target_currencies
+        )
+        
+        # Extract the rates from the response
+        if exchange_rate_data and "filtered_rates" in exchange_rate_data:
+            exchange_rates = exchange_rate_data["filtered_rates"]
+        elif exchange_rate_data and "rates" in exchange_rate_data:
+            # Filter to only include our target currencies
+            rates = exchange_rate_data["rates"]
+            exchange_rates = {curr: rate for curr, rate in rates.items() if curr in target_currencies}
+        else:
+            # If no rates are available, use historical rates as fallback
+            logger.warning(f"No exchange rates found for {current_date}, using historical rates")
+            exchange_rates = get_historical_exchange_rates(current_date)
+        
+        # Ensure base currency has rate 1.0
+        if "USD" not in exchange_rates:
+            exchange_rates["USD"] = 1.0
+            
         # Update total assets
         day.update_total_assets(exchange_rates)
     
