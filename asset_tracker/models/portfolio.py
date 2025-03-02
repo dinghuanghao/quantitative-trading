@@ -67,18 +67,18 @@ class TotalAssets:
 
 @dataclass
 class StockHoldings:
-    AShares: List[Stock] = field(default_factory=list)
-    USStocks: List[Stock] = field(default_factory=list)
-    HKStocks: List[Stock] = field(default_factory=list)
+    AShares: Dict[str, Stock] = field(default_factory=dict)
+    USStocks: Dict[str, Stock] = field(default_factory=dict)
+    HKStocks: Dict[str, Stock] = field(default_factory=dict)
     
     def total_value_by_market(self, market: str) -> Optional[float]:
         """Calculate the total value of stocks in a specific market."""
         if market == "AShares":
-            stocks = self.AShares
+            stocks = self.AShares.values()
         elif market == "USStocks":
-            stocks = self.USStocks
+            stocks = self.USStocks.values()
         elif market == "HKStocks":
-            stocks = self.HKStocks
+            stocks = self.HKStocks.values()
         else:
             raise ValueError(f"Unknown market: {market}")
             

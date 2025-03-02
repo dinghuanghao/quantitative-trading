@@ -32,7 +32,7 @@ def portfolio_to_dict(portfolio: Portfolio) -> Dict[str, Any]:
                         "quantity": stock.quantity,
                         "cost": stock.cost,
                         "price": stock.price
-                    } for stock in day.stocks.AShares
+                    } for stock in day.stocks.AShares.values()
                 ],
                 "USStocks": [
                     {
@@ -41,7 +41,7 @@ def portfolio_to_dict(portfolio: Portfolio) -> Dict[str, Any]:
                         "quantity": stock.quantity,
                         "cost": stock.cost,
                         "price": stock.price
-                    } for stock in day.stocks.USStocks
+                    } for stock in day.stocks.USStocks.values()
                 ],
                 "HKStocks": [
                     {
@@ -50,7 +50,7 @@ def portfolio_to_dict(portfolio: Portfolio) -> Dict[str, Any]:
                         "quantity": stock.quantity,
                         "cost": stock.cost,
                         "price": stock.price
-                    } for stock in day.stocks.HKStocks
+                    } for stock in day.stocks.HKStocks.values()
                 ]
             }
         }
@@ -84,7 +84,7 @@ def dict_to_portfolio(data: Dict[str, Any]) -> Portfolio:
         stocks_data = day_data.get("stocks", {})
         
         # A-shares
-        a_shares = []
+        a_shares = {}
         for stock_data in stocks_data.get("AShares", []):
             stock = Stock(
                 name=stock_data.get("name", ""),
@@ -93,10 +93,10 @@ def dict_to_portfolio(data: Dict[str, Any]) -> Portfolio:
                 cost=stock_data.get("cost", 0.0),
                 price=stock_data.get("price")
             )
-            a_shares.append(stock)
+            a_shares[stock.code] = stock
         
         # US stocks
-        us_stocks = []
+        us_stocks = {}
         for stock_data in stocks_data.get("USStocks", []):
             stock = Stock(
                 name=stock_data.get("name", ""),
@@ -105,10 +105,10 @@ def dict_to_portfolio(data: Dict[str, Any]) -> Portfolio:
                 cost=stock_data.get("cost", 0.0),
                 price=stock_data.get("price")
             )
-            us_stocks.append(stock)
+            us_stocks[stock.code] = stock
         
         # HK stocks
-        hk_stocks = []
+        hk_stocks = {}
         for stock_data in stocks_data.get("HKStocks", []):
             stock = Stock(
                 name=stock_data.get("name", ""),
@@ -117,7 +117,7 @@ def dict_to_portfolio(data: Dict[str, Any]) -> Portfolio:
                 cost=stock_data.get("cost", 0.0),
                 price=stock_data.get("price")
             )
-            hk_stocks.append(stock)
+            hk_stocks[stock.code] = stock
         
         stocks = StockHoldings(
             AShares=a_shares,

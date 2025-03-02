@@ -82,7 +82,8 @@ class PortfolioManager:
     
     def add_stock(self, date_str: str, market: str, stock: Stock) -> None:
         """
-        Add a stock to the portfolio.
+        Add a stock to the portfolio. If a stock with the same code already exists,
+        it will be updated instead of adding a duplicate.
         
         Args:
             date_str: Date string in YYYY-MM-DD format
@@ -94,11 +95,11 @@ class PortfolioManager:
             day = self.create_portfolio_day(date_str)
         
         if market == "AShares":
-            day.stocks.AShares.append(stock)
+            day.stocks.AShares[stock.code] = stock
         elif market == "USStocks":
-            day.stocks.USStocks.append(stock)
+            day.stocks.USStocks[stock.code] = stock
         elif market == "HKStocks":
-            day.stocks.HKStocks.append(stock)
+            day.stocks.HKStocks[stock.code] = stock
         else:
             raise ValueError(f"Unknown market: {market}")
     
@@ -117,9 +118,9 @@ class PortfolioManager:
             day = self.create_portfolio_day(date_str)
         
         # Update prices for each market
-        update_stock_prices(day.stocks.AShares, "AShares", date_str)
-        update_stock_prices(day.stocks.USStocks, "USStocks", date_str)
-        update_stock_prices(day.stocks.HKStocks, "HKStocks", date_str)
+        update_stock_prices(list(day.stocks.AShares.values()), "AShares", date_str)
+        update_stock_prices(list(day.stocks.USStocks.values()), "USStocks", date_str)
+        update_stock_prices(list(day.stocks.HKStocks.values()), "HKStocks", date_str)
     
     def update_total_assets(self, date_str: Optional[str] = None) -> None:
         """
