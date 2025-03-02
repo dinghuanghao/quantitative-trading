@@ -22,30 +22,55 @@ def get_ashare_price(code: str, date_str: Optional[str] = None) -> Optional[floa
         Stock price or None if not available
     """
     try:
+        # Check if this is an ETF by name or code pattern
+        is_etf = "ETF" in code or code.startswith("51") or code.startswith("15")
+        
         # Format date for AKShare
         if date_str is None:
-            # Get the latest price
-            df = ak.stock_zh_a_spot_em()
-            # Filter by code
-            df = df[df['代码'] == code]
-            if not df.empty:
-                return float(df['最新价'].iloc[0])
-            
-            # If not found and might be an ETF, try ETF API
-            if "ETF" in code or code.startswith("51") or code.startswith("15"):
-                logger.info(f"Trying ETF API for {code}")
+            # For ETFs, try ETF API first
+            if is_etf:
+                logger.info(f"Prioritizing ETF API for {code}")
                 try:
                     df = ak.fund_etf_spot_em()
                     df = df[df['代码'] == code]
                     if not df.empty:
                         return float(df['最新价'].iloc[0])
                 except Exception as etf_e:
-                    logger.warning(f"Error fetching ETF spot price for {code}: {etf_e}")
+                    logger.warning(f"Error fetching ETF spot price for {code}, falling back to A-share API: {etf_e}")
+            
+            # Try regular A-share API
+            df = ak.stock_zh_a_spot_em()
+            # Filter by code
+            df = df[df['代码'] == code]
+            if not df.empty:
+                return float(df['最新价'].iloc[0])
             
             return None
         else:
-            # Get historical price
-            # For testing purposes, use current date data since future dates won't have data
+            # For historical prices
+            # For ETFs, try ETF historical API first
+            if is_etf:
+                logger.info(f"Prioritizing ETF historical API for {code}")
+                try:
+                    # Convert date format from YYYY-MM-DD to YYYYMMDD
+                    start_date = datetime.strptime("20240301", "%Y%m%d")
+                    end_date = start_date + timedelta(days=1)
+                    
+                    start_date_str = start_date.strftime("%Y%m%d")
+                    end_date_str = end_date.strftime("%Y%m%d")
+                    
+                    df = ak.fund_etf_hist_em(symbol=code, 
+                                          start_date=start_date_str, 
+                                          end_date=end_date_str, 
+                                          adjust="")
+                    
+                    if not df.empty:
+                        # Get the closing price
+                        return float(df['收盘'].iloc[0])
+                except Exception as etf_e:
+                    logger.warning(f"Error fetching ETF historical price for {code}, falling back to A-share API: {etf_e}")
+            
+            # Try regular A-share historical API
             try:
                 df = ak.stock_zh_a_hist(symbol=code, period="daily", 
                                       start_date="20240301", 
@@ -62,28 +87,6 @@ def get_ashare_price(code: str, date_str: Optional[str] = None) -> Optional[floa
                 df = df[df['代码'] == code]
                 if not df.empty:
                     return float(df['最新价'].iloc[0])
-                
-                # If not found and might be an ETF, try ETF historical API
-                if "ETF" in code or code.startswith("51") or code.startswith("15"):
-                    logger.info(f"Trying ETF historical API for {code}")
-                    try:
-                        # Convert date format from YYYY-MM-DD to YYYYMMDD
-                        start_date = datetime.strptime("20240301", "%Y%m%d")
-                        end_date = start_date + timedelta(days=1)
-                        
-                        start_date_str = start_date.strftime("%Y%m%d")
-                        end_date_str = end_date.strftime("%Y%m%d")
-                        
-                        df = ak.fund_etf_hist_em(symbol=code, 
-                                              start_date=start_date_str, 
-                                              end_date=end_date_str, 
-                                              adjust="")
-                        
-                        if not df.empty:
-                            # Get the closing price
-                            return float(df['收盘'].iloc[0])
-                    except Exception as etf_e:
-                        logger.warning(f"Error fetching ETF historical price for {code}: {etf_e}")
             
             return None
     except Exception as e:
@@ -165,32 +168,57 @@ def get_hk_stock_price(code: str, date_str: Optional[str] = None) -> Optional[fl
         Stock price or None if not available
     """
     try:
+        # Check if this is an ETF by name
+        is_etf = "ETF" in code
+        
         if date_str is None:
-            # Get real-time price
+            # For ETFs, try ETF API first
+            if is_etf:
+                logger.info(f"Prioritizing HK ETF API for {code}")
+                try:
+                    # For HK ETFs, try different code formats
+                    df = ak.stock_hk_spot_em()
+                    for possible_code in [code, code.lstrip('0'), f"0{code}" if not code.startswith('0') else code]:
+                        temp_df = df[df['代码'] == possible_code]
+                        if not temp_df.empty:
+                            return float(temp_df['最新价'].iloc[0])
+                except Exception as etf_e:
+                    logger.warning(f"Error fetching HK ETF spot price for {code}, falling back to HK stock API: {etf_e}")
+            
+            # Try regular HK stock API
             df = ak.stock_hk_spot_em()
             # Filter by code
             df = df[df['代码'] == code]
             if not df.empty:
                 return float(df['最新价'].iloc[0])
             
-            # If not found and might be an ETF, try ETF API
-            if "ETF" in code:
-                logger.info(f"Trying HK ETF API for {code}")
-                try:
-                    # For HK ETFs, we might need to use a different approach
-                    # First try to get real-time data
-                    df = ak.stock_hk_spot_em()  # Try with regular HK stock API again
-                    # Some ETFs might be listed with different code formats
-                    for possible_code in [code, code.lstrip('0'), f"0{code}" if not code.startswith('0') else code]:
-                        temp_df = df[df['代码'] == possible_code]
-                        if not temp_df.empty:
-                            return float(temp_df['最新价'].iloc[0])
-                except Exception as etf_e:
-                    logger.warning(f"Error fetching HK ETF spot price for {code}: {etf_e}")
-            
             return None
         else:
-            # For testing purposes, use current date data since future dates won't have data
+            # For historical prices
+            # For ETFs, try ETF historical API first
+            if is_etf:
+                logger.info(f"Prioritizing HK ETF historical API for {code}")
+                try:
+                    # Try using the example provided by the user
+                    start_date = datetime.strptime("20240301", "%Y%m%d")
+                    end_date = start_date + timedelta(days=1)
+                    
+                    start_date_str = start_date.strftime("%Y%m%d")
+                    end_date_str = end_date.strftime("%Y%m%d")
+                    
+                    # Try with the user's example for HK ETF
+                    df = ak.stock_hk_hist(symbol=code, period="daily", 
+                                       start_date=start_date_str, 
+                                       end_date=end_date_str, 
+                                       adjust="qfq")
+                    
+                    if not df.empty:
+                        # Get the closing price
+                        return float(df['收盘'].iloc[0])
+                except Exception as etf_e:
+                    logger.warning(f"Error fetching HK ETF historical price for {code}, falling back to HK stock API: {etf_e}")
+            
+            # Try regular HK stock historical API
             try:
                 df = ak.stock_hk_hist(symbol=code, period="daily", 
                                     start_date="20240301", 
@@ -207,29 +235,6 @@ def get_hk_stock_price(code: str, date_str: Optional[str] = None) -> Optional[fl
                 df = df[df['代码'] == code]
                 if not df.empty:
                     return float(df['最新价'].iloc[0])
-                
-                # If not found and might be an ETF, try ETF historical API
-                if "ETF" in code:
-                    logger.info(f"Trying HK ETF historical API for {code}")
-                    try:
-                        # Try using the example provided by the user
-                        start_date = datetime.strptime("20240301", "%Y%m%d")
-                        end_date = start_date + timedelta(days=1)
-                        
-                        start_date_str = start_date.strftime("%Y%m%d")
-                        end_date_str = end_date.strftime("%Y%m%d")
-                        
-                        # Try with the user's example for HK ETF
-                        df = ak.stock_hk_hist(symbol=code, period="daily", 
-                                           start_date=start_date_str, 
-                                           end_date=end_date_str, 
-                                           adjust="qfq")
-                        
-                        if not df.empty:
-                            # Get the closing price
-                            return float(df['收盘'].iloc[0])
-                    except Exception as etf_e:
-                        logger.warning(f"Error fetching HK ETF historical price for {code}: {etf_e}")
             
             return None
     except Exception as e:
