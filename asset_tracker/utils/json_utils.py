@@ -4,7 +4,7 @@ from datetime import date
 import os
 from pathlib import Path
 
-from ..models.portfolio import Portfolio, PortfolioDay, CashHoldings, TotalAssets, StockHoldings, Stock
+from ..models.portfolio import Portfolio, PortfolioDay, CashHoldings, TotalAssets, ExchangeRates, StockHoldings, Stock
 from ..config.settings import DATA_DIR, PORTFOLIO_FILE
 
 
@@ -23,6 +23,11 @@ def portfolio_to_dict(portfolio: Portfolio) -> Dict[str, Any]:
                 "USD": day.totalAssets.USD,
                 "HKD": day.totalAssets.HKD,
                 "CNY": day.totalAssets.CNY
+            },
+            "exchangeRates": {
+                "USD": day.exchangeRates.USD,
+                "CNY": day.exchangeRates.CNY,
+                "HKD": day.exchangeRates.HKD
             },
             "stocks": {
                 "AShares": [
@@ -80,6 +85,14 @@ def dict_to_portfolio(data: Dict[str, Any]) -> Portfolio:
             CNY=total_assets_data.get("CNY")
         )
         
+        # Create exchange rates
+        exchange_rates_data = day_data.get("exchangeRates", {})
+        exchange_rates = ExchangeRates(
+            USD=exchange_rates_data.get("USD", 1.0),
+            CNY=exchange_rates_data.get("CNY"),
+            HKD=exchange_rates_data.get("HKD")
+        )
+        
         # Create stock holdings
         stocks_data = day_data.get("stocks", {})
         
@@ -129,7 +142,8 @@ def dict_to_portfolio(data: Dict[str, Any]) -> Portfolio:
         portfolio_day = PortfolioDay(
             cash=cash,
             totalAssets=total_assets,
-            stocks=stocks
+            stocks=stocks,
+            exchangeRates=exchange_rates
         )
         
         # Add to portfolio
