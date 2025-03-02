@@ -84,6 +84,48 @@ def main():
     logger.info("Calculating total assets...")
     manager.update_total_assets(date_str)
     
+    # Add another date for demonstration
+    another_date_str = "2023-02-01"
+    logger.info(f"Adding another date for demonstration: {another_date_str}")
+    portfolio_day = manager.create_portfolio_day(another_date_str)
+    
+    # Copy the same data from the first date
+    manager.update_cash(another_date_str, "USD", 10000)
+    manager.update_cash(another_date_str, "HKD", 10000)
+    manager.update_cash(another_date_str, "CNY", 10000)
+    
+    # Add the same stocks
+    manager.add_stock(another_date_str, "AShares", Stock(
+        name="贵州茅台",
+        code="600519",
+        quantity=100,
+        cost=10
+    ))
+    manager.add_stock(another_date_str, "AShares", Stock(
+        name="中证500ETF",
+        code="510500",
+        quantity=100,
+        cost=0.5
+    ))
+    manager.add_stock(another_date_str, "USStocks", Stock(
+        name="特斯拉",
+        code="TSLA",
+        quantity=100,
+        cost=100
+    ))
+    manager.add_stock(another_date_str, "USStocks", Stock(
+        name="英伟达",
+        code="NVDA",
+        quantity=100,
+        cost=100
+    ))
+    manager.add_stock(another_date_str, "HKStocks", Stock(
+        name="腾讯控股",
+        code="00700",
+        quantity=100,
+        cost=100
+    ))
+    
     # Save the portfolio
     manager.save()
     
@@ -92,9 +134,15 @@ def main():
     logger.info("Portfolio Summary:")
     print(json.dumps(summary, indent=4, ensure_ascii=False))
     
-    # Display the full portfolio data
+    # Demonstrate update_all_dates method
+    logger.info("Demonstrating update_all_dates method...")
+    results = manager.update_all_dates(delay_seconds=2)
+    
+    logger.info(f"Update results: {results}")
+    
+    # Display the updated portfolio data
     portfolio_data = portfolio_to_dict(manager.portfolio)
-    logger.info("Full Portfolio Data:")
+    logger.info("Updated Portfolio Data:")
     print(json.dumps(portfolio_data, indent=4, ensure_ascii=False))
 
 

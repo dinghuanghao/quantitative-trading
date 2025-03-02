@@ -197,3 +197,63 @@ class PortfolioManager:
         }
         
         return summary
+        
+    def update_all_dates(self, start_date: Optional[str] = None, end_date: Optional[str] = None, delay_seconds: int = 1) -> Dict[str, bool]:
+        """
+        Update stock prices and total assets for all dates in the portfolio or within a specified date range.
+        
+        Args:
+            start_date: Optional start date string in YYYY-MM-DD format, None for all dates
+            end_date: Optional end date string in YYYY-MM-DD format, None for all dates
+            delay_seconds: Delay between API calls in seconds to avoid rate limiting
+            
+        Returns:
+            Dictionary with date strings as keys and success status as values
+        """
+        import time
+        
+        # Get all dates in the portfolio
+        all_dates = sorted(list(self.portfolio.data.keys()))
+        if not all_dates:
+            logger.warning("No dates found in the portfolio")
+            return {}
+        
+        # Filter dates if start_date or end_date is provided
+        if start_date or end_date:
+            filtered_dates = []
+            for date_str in all_dates:
+                if start_date and date_str < start_date:
+                    continue
+                if end_date and date_str > end_date:
+                    continue
+                filtered_dates.append(date_str)
+            dates_to_update = filtered_dates
+        else:
+            dates_to_update = all_dates
+        
+        # Update each date
+        results = {}
+        for i, date_str in enumerate(dates_to_update):
+            logger.info(f"Updating date {i+1}/{len(dates_to_update)}: {date_str}")
+            try:
+                # Update stock prices
+                self.update_stock_prices(date_str)
+                
+                # Add delay to avoid rate limiting
+                if i < len(dates_to_update) - 1 and delay_seconds > 0:
+                    time.sleep(delay_seconds)
+                
+                # Update total assets
+                self.update_total_assets(date_str)
+                
+                results[date_str] = True
+                logger.info(f"Successfully updated {date_str}")
+            except Exception as e:
+                logger.error(f"Error updating {date_str}: {e}")
+                results[date_str] = False
+        
+        # Save the portfolio
+        self.save()
+        
+        # Return results
+        return results
