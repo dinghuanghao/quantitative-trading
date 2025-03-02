@@ -85,25 +85,26 @@ Key features of the schema:
 
 ## External APIs and Data Sources
 
-The Asset Tracker uses the following external APIs to fetch stock prices and exchange rates:
+The Asset Tracker uses the following free and open-source libraries and APIs to fetch stock prices and exchange rates:
 
-### 1. Alpha Vantage API
-- Used for US stock prices and forex data
+### 1. Yahoo Finance (yfinance)
+- Used for stock prices across all markets (US, China, Hong Kong)
 - Provides both real-time and historical data
-- API documentation: [Alpha Vantage Documentation](https://www.alphavantage.co/documentation/)
-- Required for: US stock prices, historical exchange rates
+- Free and open-source Python library
+- API documentation: [yfinance Documentation](https://pypi.org/project/yfinance/)
+- Required for: Stock prices for all markets
 
-### 2. Tushare API
-- Used for Chinese A-shares and Hong Kong stock data
-- Provides comprehensive data for Chinese markets
-- API documentation: [Tushare Documentation](https://tushare.pro/document/2)
-- Required for: A-shares prices, Hong Kong stock prices
+### 2. pandas-datareader
+- Used as a backup for financial data
+- Provides access to various data sources including Yahoo Finance
+- API documentation: [pandas-datareader Documentation](https://pandas-datareader.readthedocs.io/)
+- Required for: Additional financial data sources
 
-### 3. Exchange Rate API
-- Used for current exchange rates
-- Free and simple API for currency conversion
-- API documentation: [Exchange Rate API Documentation](https://www.exchangerate-api.com/docs/free)
-- Required for: Current exchange rates between currencies
+### 3. exchangerate.host API
+- Used for current and historical exchange rates
+- Free and open API for currency conversion
+- API documentation: [exchangerate.host Documentation](https://exchangerate.host/#/)
+- Required for: Exchange rates between currencies
 
 ## Directory Structure
 
@@ -143,9 +144,9 @@ asset_tracker/
 1. Clone the repository
 2. Install required packages:
    ```
-   pip install requests tushare
+   pip install -r requirements.txt
    ```
-3. Configure API keys in `asset_tracker/config/settings.py`
+3. No API keys are required as the implementation uses free and open-source libraries
 
 ### Basic Usage
 

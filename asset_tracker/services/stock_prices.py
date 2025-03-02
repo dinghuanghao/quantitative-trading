@@ -1,22 +1,19 @@
 import requests
-import tushare as ts
+import yfinance as yf
+import pandas as pd
+import pandas_datareader as pdr
 from typing import Dict, Optional, List
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from ..config.settings import ALPHA_VANTAGE_API_KEY, ALPHA_VANTAGE_BASE_URL, TUSHARE_API_KEY
 from ..models.portfolio import Stock
 
 logger = logging.getLogger(__name__)
 
-# Initialize Tushare
-ts.set_token(TUSHARE_API_KEY)
-pro = ts.pro_api()
-
 
 def get_ashare_price(code: str, date_str: Optional[str] = None) -> Optional[float]:
     """
-    Get price for A-share stock.
+    Get price for A-share stock using Yahoo Finance.
     
     Args:
         code: Stock code (e.g., '600519')
@@ -26,24 +23,33 @@ def get_ashare_price(code: str, date_str: Optional[str] = None) -> Optional[floa
         Stock price or None if not available
     """
     try:
+        # Convert code to Yahoo Finance format for A-shares
+        # Shanghai: code.SS, Shenzhen: code.SZ
+        yahoo_code = f"{code}.{'SS' if code.startswith('6') else 'SZ'}"
+        
         if date_str is None:
             # Get real-time price
-            df = ts.get_realtime_quotes(code)
-            if df is not None and not df.empty:
-                return float(df.iloc[0]['price'])
+            ticker = yf.Ticker(yahoo_code)
+            data = ticker.history(period="1d")
+            if not data.empty:
+                return float(data['Close'].iloc[-1])
             return None
         else:
             # Get historical price
             end_date = datetime.strptime(date_str, "%Y-%m-%d")
-            start_date = end_date.strftime("%Y%m%d")
-            end_date = end_date.strftime("%Y%m%d")
+            start_date = end_date - timedelta(days=5)  # Get a few days before to ensure we have data
             
-            df = pro.daily(ts_code=f"{code}.SH" if code.startswith('6') else f"{code}.SZ", 
-                          start_date=start_date, 
-                          end_date=end_date)
+            data = yf.download(yahoo_code, start=start_date, end=end_date + timedelta(days=1))
             
-            if df is not None and not df.empty:
-                return float(df.iloc[0]['close'])
+            if not data.empty:
+                # Find the closest date if exact date not available
+                if date_str in data.index.strftime('%Y-%m-%d').tolist():
+                    return float(data.loc[data.index.strftime('%Y-%m-%d') == date_str, 'Close'].iloc[0])
+                else:
+                    # Get the last available date before the requested date
+                    available_dates = data.index[data.index <= pd.Timestamp(date_str)]
+                    if not available_dates.empty:
+                        return float(data.loc[available_dates[-1], 'Close'])
             return None
     except Exception as e:
         logger.error(f"Error fetching A-share price for {code}: {e}")
@@ -52,7 +58,7 @@ def get_ashare_price(code: str, date_str: Optional[str] = None) -> Optional[floa
 
 def get_us_stock_price(code: str, date_str: Optional[str] = None) -> Optional[float]:
     """
-    Get price for US stock.
+    Get price for US stock using Yahoo Finance.
     
     Args:
         code: Stock code (e.g., 'AAPL')
@@ -64,38 +70,28 @@ def get_us_stock_price(code: str, date_str: Optional[str] = None) -> Optional[fl
     try:
         if date_str is None:
             # Get real-time price
-            params = {
-                "function": "GLOBAL_QUOTE",
-                "symbol": code,
-                "apikey": ALPHA_VANTAGE_API_KEY
-            }
+            ticker = yf.Ticker(code)
+            data = ticker.history(period="1d")
+            if not data.empty:
+                return float(data['Close'].iloc[-1])
+            return None
         else:
             # Get historical price
-            params = {
-                "function": "TIME_SERIES_DAILY",
-                "symbol": code,
-                "apikey": ALPHA_VANTAGE_API_KEY,
-                "outputsize": "compact"
-            }
-        
-        response = requests.get(ALPHA_VANTAGE_BASE_URL, params=params)
-        response.raise_for_status()
-        data = response.json()
-        
-        if date_str is None:
-            # Extract real-time price
-            quote = data.get("Global Quote", {})
-            price_str = quote.get("05. price")
-            return float(price_str) if price_str else None
-        else:
-            # Extract historical price
-            time_series = data.get("Time Series (Daily)", {})
-            date_data = time_series.get(date_str, {})
+            end_date = datetime.strptime(date_str, "%Y-%m-%d")
+            start_date = end_date - timedelta(days=5)  # Get a few days before to ensure we have data
             
-            if date_data:
-                return float(date_data.get("4. close", 0))
+            data = yf.download(code, start=start_date, end=end_date + timedelta(days=1))
+            
+            if not data.empty:
+                # Find the closest date if exact date not available
+                if date_str in data.index.strftime('%Y-%m-%d').tolist():
+                    return float(data.loc[data.index.strftime('%Y-%m-%d') == date_str, 'Close'].iloc[0])
+                else:
+                    # Get the last available date before the requested date
+                    available_dates = data.index[data.index <= pd.Timestamp(date_str)]
+                    if not available_dates.empty:
+                        return float(data.loc[available_dates[-1], 'Close'])
             return None
-            
     except Exception as e:
         logger.error(f"Error fetching US stock price for {code}: {e}")
         return None
@@ -103,7 +99,7 @@ def get_us_stock_price(code: str, date_str: Optional[str] = None) -> Optional[fl
 
 def get_hk_stock_price(code: str, date_str: Optional[str] = None) -> Optional[float]:
     """
-    Get price for Hong Kong stock.
+    Get price for Hong Kong stock using Yahoo Finance.
     
     Args:
         code: Stock code (e.g., '00700')
@@ -113,25 +109,32 @@ def get_hk_stock_price(code: str, date_str: Optional[str] = None) -> Optional[fl
         Stock price or None if not available
     """
     try:
-        # For HK stocks, we can use Tushare as well
+        # Convert code to Yahoo Finance format for HK stocks
+        yahoo_code = f"{code}.HK"
+        
         if date_str is None:
-            # Get real-time price (using Tushare's HK quote API)
-            df = ts.get_hk_quote(code)
-            if df is not None and not df.empty:
-                return float(df.iloc[0]['price'])
+            # Get real-time price
+            ticker = yf.Ticker(yahoo_code)
+            data = ticker.history(period="1d")
+            if not data.empty:
+                return float(data['Close'].iloc[-1])
             return None
         else:
             # Get historical price
             end_date = datetime.strptime(date_str, "%Y-%m-%d")
-            start_date = end_date.strftime("%Y%m%d")
-            end_date = end_date.strftime("%Y%m%d")
+            start_date = end_date - timedelta(days=5)  # Get a few days before to ensure we have data
             
-            df = pro.hk_daily(ts_code=f"{code}.HK", 
-                            start_date=start_date, 
-                            end_date=end_date)
+            data = yf.download(yahoo_code, start=start_date, end=end_date + timedelta(days=1))
             
-            if df is not None and not df.empty:
-                return float(df.iloc[0]['close'])
+            if not data.empty:
+                # Find the closest date if exact date not available
+                if date_str in data.index.strftime('%Y-%m-%d').tolist():
+                    return float(data.loc[data.index.strftime('%Y-%m-%d') == date_str, 'Close'].iloc[0])
+                else:
+                    # Get the last available date before the requested date
+                    available_dates = data.index[data.index <= pd.Timestamp(date_str)]
+                    if not available_dates.empty:
+                        return float(data.loc[available_dates[-1], 'Close'])
             return None
     except Exception as e:
         logger.error(f"Error fetching HK stock price for {code}: {e}")

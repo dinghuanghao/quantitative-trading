@@ -1,9 +1,9 @@
 import requests
+import pandas as pd
+import pandas_datareader.data as web
 from typing import Dict, Optional
 import logging
 from datetime import datetime, timedelta
-
-from ..config.settings import EXCHANGE_RATE_API_URL, ALPHA_VANTAGE_API_KEY, ALPHA_VANTAGE_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ _last_update = None
 
 def get_exchange_rates(base_currency: str = "USD", force_refresh: bool = False) -> Dict[str, float]:
     """
-    Fetch current exchange rates from the API.
+    Fetch current exchange rates using the free exchangerate.host API.
     
     Args:
         base_currency: Base currency for the exchange rates
@@ -33,12 +33,13 @@ def get_exchange_rates(base_currency: str = "USD", force_refresh: bool = False) 
         return _exchange_rate_cache
     
     try:
-        # Use the Exchange Rate API
-        response = requests.get(f"{EXCHANGE_RATE_API_URL}/{base_currency}")
+        # Use the free exchangerate.host API
+        url = f"https://api.exchangerate.host/latest?base={base_currency}"
+        response = requests.get(url)
         response.raise_for_status()
         data = response.json()
         
-        if data.get("result") == "success":
+        if data.get("success", False):
             _exchange_rate_cache = data.get("rates", {})
             _last_update = current_time
             return _exchange_rate_cache
@@ -53,7 +54,7 @@ def get_exchange_rates(base_currency: str = "USD", force_refresh: bool = False) 
 
 def get_historical_exchange_rates(date_str: str, base_currency: str = "USD") -> Dict[str, float]:
     """
-    Fetch historical exchange rates for a specific date.
+    Fetch historical exchange rates for a specific date using exchangerate.host.
     
     Args:
         date_str: Date string in YYYY-MM-DD format
@@ -63,34 +64,41 @@ def get_historical_exchange_rates(date_str: str, base_currency: str = "USD") -> 
         Dictionary of exchange rates with currency as key and rate as value
     """
     try:
-        # Use Alpha Vantage for historical forex data
-        # This is a simplified example - Alpha Vantage requires specific currency pairs
-        # For a complete solution, you would need to make multiple requests for each pair
-        
-        # Example for USD/CNY
-        params = {
-            "function": "FX_DAILY",
-            "from_symbol": base_currency,
-            "to_symbol": "CNY",
-            "apikey": ALPHA_VANTAGE_API_KEY,
-            "outputsize": "compact"
-        }
-        
-        response = requests.get(ALPHA_VANTAGE_BASE_URL, params=params)
+        # Use the free exchangerate.host API for historical data
+        url = f"https://api.exchangerate.host/{date_str}?base={base_currency}"
+        response = requests.get(url)
         response.raise_for_status()
         data = response.json()
         
-        # Extract the rate for the specific date
-        time_series = data.get("Time Series FX (Daily)", {})
-        date_data = time_series.get(date_str, {})
-        
-        if date_data:
-            # Use the closing price as the exchange rate
-            rate = float(date_data.get("4. close", 0))
-            return {"CNY": rate}
+        if data.get("success", False):
+            return data.get("rates", {})
         else:
-            logger.warning(f"No exchange rate data found for {date_str}")
-            return {}
+            # Fallback to pandas-datareader with Yahoo Finance data
+            logger.warning(f"Falling back to pandas-datareader for historical exchange rates on {date_str}")
+            
+            # Convert date string to datetime
+            date = datetime.strptime(date_str, "%Y-%m-%d")
+            
+            # Get exchange rates for major currencies
+            rates = {}
+            
+            # Try to get USD/CNY rate
+            try:
+                df = web.DataReader(f"CNY{base_currency}=X", "yahoo", date, date + timedelta(days=1))
+                if not df.empty:
+                    rates["CNY"] = float(df["Close"].iloc[-1])
+            except Exception as e:
+                logger.error(f"Error fetching USD/CNY rate: {e}")
+            
+            # Try to get USD/HKD rate
+            try:
+                df = web.DataReader(f"HKD{base_currency}=X", "yahoo", date, date + timedelta(days=1))
+                if not df.empty:
+                    rates["HKD"] = float(df["Close"].iloc[-1])
+            except Exception as e:
+                logger.error(f"Error fetching USD/HKD rate: {e}")
+            
+            return rates
             
     except Exception as e:
         logger.error(f"Error fetching historical exchange rates: {e}")
