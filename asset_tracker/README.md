@@ -87,24 +87,54 @@ Key features of the schema:
 
 The Asset Tracker uses the following free and open-source libraries and APIs to fetch stock prices and exchange rates:
 
-### 1. Yahoo Finance (yfinance)
+### 1. AKShare
 - Used for stock prices across all markets (US, China, Hong Kong)
 - Provides both real-time and historical data
 - Free and open-source Python library
-- API documentation: [yfinance Documentation](https://pypi.org/project/yfinance/)
-- Required for: Stock prices for all markets
+- Comprehensive support for Chinese markets (A-shares, Hong Kong)
+- API documentation: [AKShare Documentation](https://akshare.akfamily.xyz/)
+- Required for: Stock prices and exchange rates for all markets
+
+Examples of AKShare usage:
+
+```python
+# Get A-share historical data
+import akshare as ak
+stock_zh_a_hist_df = ak.stock_zh_a_hist(
+    symbol="000001", 
+    period="daily", 
+    start_date="20230301", 
+    end_date="20230401", 
+    adjust=""
+)
+
+# Get US stock historical data
+stock_us_hist_df = ak.stock_us_hist(
+    symbol="AAPL", 
+    period="daily", 
+    start_date="20230201", 
+    end_date="20230301", 
+    adjust="qfq"
+)
+
+# Get Hong Kong stock historical data
+stock_hk_hist_df = ak.stock_hk_hist(
+    symbol="00700", 
+    period="daily", 
+    start_date="20230101", 
+    end_date="20230201", 
+    adjust=""
+)
+
+# Get exchange rates
+currency_data = ak.currency_boc_sina(symbol="USDCNY")
+```
 
 ### 2. pandas-datareader
 - Used as a backup for financial data
-- Provides access to various data sources including Yahoo Finance
+- Provides access to various data sources
 - API documentation: [pandas-datareader Documentation](https://pandas-datareader.readthedocs.io/)
 - Required for: Additional financial data sources
-
-### 3. exchangerate.host API
-- Used for current and historical exchange rates
-- Free and open API for currency conversion
-- API documentation: [exchangerate.host Documentation](https://exchangerate.host/#/)
-- Required for: Exchange rates between currencies
 
 ## Directory Structure
 

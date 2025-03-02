@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-import pandas_datareader.data as web
+import akshare as ak
 from typing import Dict, Optional
 import logging
 from datetime import datetime, timedelta
@@ -14,7 +14,7 @@ _last_update = None
 
 def get_exchange_rates(base_currency: str = "USD", force_refresh: bool = False) -> Dict[str, float]:
     """
-    Fetch current exchange rates using the free exchangerate.host API.
+    Fetch current exchange rates using AKShare.
     
     Args:
         base_currency: Base currency for the exchange rates
@@ -33,19 +33,37 @@ def get_exchange_rates(base_currency: str = "USD", force_refresh: bool = False) 
         return _exchange_rate_cache
     
     try:
-        # Use the free exchangerate.host API
-        url = f"https://api.exchangerate.host/latest?base={base_currency}"
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
+        # Use AKShare to get exchange rates
+        rates = {}
         
-        if data.get("success", False):
-            _exchange_rate_cache = data.get("rates", {})
-            _last_update = current_time
-            return _exchange_rate_cache
-        else:
-            logger.error(f"Failed to fetch exchange rates: {data}")
-            return _exchange_rate_cache or {}
+        # Get USD/CNY rate
+        try:
+            df = ak.currency_boc_sina(symbol="USDCNY")
+            if not df.empty:
+                rates["CNY"] = float(df["中行卖出价"].iloc[0])
+        except Exception as e:
+            logger.error(f"Error fetching USD/CNY rate: {e}")
+            
+        # Get USD/HKD rate
+        try:
+            df = ak.currency_boc_sina(symbol="USDHKD")
+            if not df.empty:
+                rates["HKD"] = float(df["中行卖出价"].iloc[0])
+        except Exception as e:
+            logger.error(f"Error fetching USD/HKD rate: {e}")
+        
+        # Add USD/USD rate (1.0)
+        rates["USD"] = 1.0
+        
+        # If base currency is not USD, convert all rates
+        if base_currency != "USD" and base_currency in rates:
+            base_rate = rates[base_currency]
+            for currency, rate in rates.items():
+                rates[currency] = rate / base_rate
+        
+        _exchange_rate_cache = rates
+        _last_update = current_time
+        return _exchange_rate_cache
             
     except Exception as e:
         logger.error(f"Error fetching exchange rates: {e}")
@@ -54,7 +72,7 @@ def get_exchange_rates(base_currency: str = "USD", force_refresh: bool = False) 
 
 def get_historical_exchange_rates(date_str: str, base_currency: str = "USD") -> Dict[str, float]:
     """
-    Fetch historical exchange rates for a specific date using exchangerate.host.
+    Fetch historical exchange rates for a specific date using AKShare.
     
     Args:
         date_str: Date string in YYYY-MM-DD format
@@ -64,41 +82,54 @@ def get_historical_exchange_rates(date_str: str, base_currency: str = "USD") -> 
         Dictionary of exchange rates with currency as key and rate as value
     """
     try:
-        # Use the free exchangerate.host API for historical data
-        url = f"https://api.exchangerate.host/{date_str}?base={base_currency}"
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
+        # Convert date format from YYYY-MM-DD to YYYYMMDD
+        date = datetime.strptime(date_str, "%Y-%m-%d")
+        date_str_formatted = date.strftime("%Y%m%d")
         
-        if data.get("success", False):
-            return data.get("rates", {})
-        else:
-            # Fallback to pandas-datareader with Yahoo Finance data
-            logger.warning(f"Falling back to pandas-datareader for historical exchange rates on {date_str}")
-            
-            # Convert date string to datetime
-            date = datetime.strptime(date_str, "%Y-%m-%d")
-            
-            # Get exchange rates for major currencies
-            rates = {}
-            
-            # Try to get USD/CNY rate
+        rates = {}
+        
+        # Get USD/CNY historical rate
+        try:
+            df = ak.currency_history_sina(symbol="USDCNY", start_date=date_str_formatted, end_date=date_str_formatted)
+            if not df.empty:
+                rates["CNY"] = float(df["收盘价"].iloc[0])
+        except Exception as e:
+            logger.warning(f"Error fetching historical USD/CNY rate: {e}")
+            # Fallback to current rate
             try:
-                df = web.DataReader(f"CNY{base_currency}=X", "yahoo", date, date + timedelta(days=1))
+                df = ak.currency_boc_sina(symbol="USDCNY")
                 if not df.empty:
-                    rates["CNY"] = float(df["Close"].iloc[-1])
-            except Exception as e:
-                logger.error(f"Error fetching USD/CNY rate: {e}")
-            
-            # Try to get USD/HKD rate
+                    rates["CNY"] = float(df["中行卖出价"].iloc[0])
+                    logger.info(f"Using current USD/CNY rate as fallback: {rates['CNY']}")
+            except Exception as e2:
+                logger.error(f"Error fetching current USD/CNY rate as fallback: {e2}")
+        
+        # Get USD/HKD historical rate
+        try:
+            df = ak.currency_history_sina(symbol="USDHKD", start_date=date_str_formatted, end_date=date_str_formatted)
+            if not df.empty:
+                rates["HKD"] = float(df["收盘价"].iloc[0])
+        except Exception as e:
+            logger.warning(f"Error fetching historical USD/HKD rate: {e}")
+            # Fallback to current rate
             try:
-                df = web.DataReader(f"HKD{base_currency}=X", "yahoo", date, date + timedelta(days=1))
+                df = ak.currency_boc_sina(symbol="USDHKD")
                 if not df.empty:
-                    rates["HKD"] = float(df["Close"].iloc[-1])
-            except Exception as e:
-                logger.error(f"Error fetching USD/HKD rate: {e}")
-            
-            return rates
+                    rates["HKD"] = float(df["中行卖出价"].iloc[0])
+                    logger.info(f"Using current USD/HKD rate as fallback: {rates['HKD']}")
+            except Exception as e2:
+                logger.error(f"Error fetching current USD/HKD rate as fallback: {e2}")
+        
+        # Add USD/USD rate (1.0)
+        rates["USD"] = 1.0
+        
+        # If base currency is not USD, convert all rates
+        if base_currency != "USD" and base_currency in rates:
+            base_rate = rates[base_currency]
+            for currency, rate in rates.items():
+                rates[currency] = rate / base_rate
+        
+        return rates
             
     except Exception as e:
         logger.error(f"Error fetching historical exchange rates: {e}")

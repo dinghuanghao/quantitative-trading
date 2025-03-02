@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Script to run the asset tracker example with the provided sample data.
+Uses AKShare for stock price and exchange rate data.
 """
 
 import os
@@ -25,8 +26,10 @@ def main():
     # Create a portfolio manager
     manager = PortfolioManager()
     
-    # Use the example date
-    date_str = "2025-03-02"
+    # Use the example date - using a current date for better data availability
+    # AKShare may have issues with future dates
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    logger.info(f"Using current date for example: {date_str}")
     
     # Create a new portfolio day
     portfolio_day = manager.create_portfolio_day(date_str)
@@ -44,8 +47,8 @@ def main():
         cost=10
     ))
     manager.add_stock(date_str, "AShares", Stock(
-        name="中证 2000ETF",
-        code="563300",
+        name="中证500ETF",  # Changed to a more common ETF that AKShare can find
+        code="510500",
         quantity=100,
         cost=0.5
     ))
@@ -73,7 +76,7 @@ def main():
     ))
     
     # Update stock prices
-    logger.info("Updating stock prices...")
+    logger.info("Updating stock prices using AKShare...")
     manager.update_stock_prices(date_str)
     
     # Update total assets
