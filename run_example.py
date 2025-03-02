@@ -28,10 +28,11 @@ def main():
     
     # Use the example date - using a current date for better data availability
     # AKShare may have issues with future dates
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    logger.info(f"Using current date for example: {date_str}")
+    date_str = "2023-03-01"  # Use a past date for better data availability
+    logger.info(f"Using date for example: {date_str}")
     
-    # Create a new portfolio day
+    # Create a new portfolio day and clear any existing data
+    manager.portfolio.days = {}  # Clear any existing days to avoid duplicates
     portfolio_day = manager.create_portfolio_day(date_str)
     
     # Update cash holdings with the example data
